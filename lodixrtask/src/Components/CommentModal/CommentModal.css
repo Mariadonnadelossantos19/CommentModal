@@ -1,0 +1,140 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 600px;
+  padding: 20px;
+  animation: fadeIn 0.3s ease;
+}
+
+h2 {
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.comment-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.comment-item {
+  background: #f9f9f9;
+  border-radius: 5px;
+  padding: 10px;
+  margin-bottom: 10px;
+  transition: background 0.3s;
+}
+
+.comment-item:hover {
+  background: #f1f1f1;
+}
+
+.comment-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn {
+  border-radius: 5px;
+  padding: 5px 10px;
+  transition: background 0.3s;
+}
+
+.btn:hover {
+  background: #e0e0e0;
+}
+
+.textarea-container {
+  position: relative;
+}
+
+textarea {
+  width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 10px;
+  resize: none;
+  box-shadow: none;
+}
+
+textarea:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.send-button {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.send-button:hover {
+  background-color: #0056b3;
+}
+
+.attach-button {
+  position: absolute;
+  right: 50px;
+  bottom: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.close-button {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.close-button:hover {
+  background-color: #5a6268;
+}
+
+.remove-attachment {
+  background: transparent;
+  border: none;
+  color: #dc3545; /* Bootstrap danger color */
+  cursor: pointer;
+}
+
+.comments-history {
+  max-height: 200px; /* Limit height for scrolling */
+  overflow-y: auto; /* Enable scrolling */
+  margin-bottom: 15px;
+}
+
+.attachment-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+} 
