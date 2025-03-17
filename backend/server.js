@@ -116,6 +116,43 @@ app.delete("/api/delete-comment/:id", (req, res) => {
   });
 });
 
+// POST /api/comments - Create a new comment or reply
+app.post('/api/comments', upload.single('file'), async (req, res) => {
+  try {
+    const { cmt_content, cmt_fnd_id, cmt_isReply_to, cmt_added_by } = req.body;
+    
+    // Handle file upload if present
+    let cmt_attachment = null;
+    if (req.file) {
+      cmt_attachment = req.file.filename;
+    }
+    
+    // Insert into database
+    const result = await db.query(
+      'INSERT INTO tblcomments (cmt_content, cmt_fnd_id, cmt_isReply_to, cmt_added_by, cmt_attachment, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+      [cmt_content, cmt_fnd_id, cmt_isReply_to || null, cmt_added_by || null, cmt_attachment]
+    );
+    
+    res.json({ success: true, commentId: result.insertId });
+  } catch (error) {
+    console.error('Error creating comment:', error);
+    res.status(500).json({ success: false, message: 'Failed to create comment' });
+  }
+});
+
+// GET /api/comments - Get all top-level comments (not replies)
+app.get('/api/comments', async (req, res) => {
+  try {
+    const comments = await db.query(
+      'SELECT * FROM tblcomments WHERE cmt_isReply_to IS NULL AND cmt_isArchived = 0 ORDER BY created_at DESC'
+    );
+    res.json(comments);
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch comments' });
+  }
+});
+
 app.listen(3001, () => {
   console.log("Server running on port 3001");
 });

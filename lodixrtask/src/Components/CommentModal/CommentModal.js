@@ -122,22 +122,24 @@ const CommentModal = ({ fundId, onClose }) => {
   const handleReplySubmit = async (commentId) => {
     if (!replyContent.trim()) return;
     
+    // Create form data according to the database schema
     const formData = new FormData();
-    formData.append("reply", replyContent);
-    formData.append("id", commentId);
-    formData.append("replyTo", commentId);
-    formData.append("conceptID", fundId);
-    formData.append("conceptType", "fund");
+    formData.append("cmt_content", replyContent);
+    formData.append("cmt_fnd_id", fundId); // This should match cmt_fnd_id in the database
+    formData.append("cmt_isReply_to", commentId); // This is the key field for replies
+    
+    // If you have user authentication, add the user ID
+    // formData.append("cmt_added_by", userId);
     
     if (replyAttachment) {
-      formData.append("file", replyAttachment);
+      formData.append("file", replyAttachment); // The file itself
     }
 
     try {
-      const response = await axios.post("http://localhost:3001/api/send-reply", formData, {
+      const response = await axios.post("http://localhost:3001/api/comments", formData, {
         headers: { 
           "Content-Type": "multipart/form-data",
-          "Authorization": `Bearer ${localStorage.getItem('token')}`
+          "Authorization": localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : ''
         },
       });
       
@@ -147,33 +149,34 @@ const CommentModal = ({ fundId, onClose }) => {
         setReplyToCommentId(null);
         setShowReplyForm(false);
         
-        const commentElement = $(`.comment-item[data-id="${commentId}"]`);
-        const countReplies = commentElement.find("span.count-replies");
-        if (countReplies.length) {
-          const currentCount = parseInt(countReplies.text()) || 0;
-          countReplies.text(currentCount + 1);
-        }
+        // Refresh the comments and replies
+        fetchComments();
         
-        if (replyAttachment) {
-          const countAttachments = commentElement.find("span.count-attachments");
-          if (countAttachments.length) {
-            const currentCount = parseInt(countAttachments.text()) || 0;
-            countAttachments.text(currentCount + 1);
-          }
-        }
-        
-        fetchReplies(commentId);
+        Swal.fire({
+          icon: "success",
+          title: "Success",
+          text: "Reply submitted successfully!",
+          confirmButtonColor: "#8392ab",
+          timer: 1500
+        });
       } else {
         console.error("Error submitting reply:", response.data.error);
         Swal.fire({
           icon: "error",
           title: "Error",
-          text: "Failed to submit reply. Please try again.",
+          text: response.data.message || "Failed to submit reply. Please try again.",
           confirmButtonColor: "#8392ab",
         });
       }
     } catch (error) {
       console.error("Error submitting reply:", error);
+      
+      // More detailed error logging
+      if (error.response) {
+        console.error("Response data:", error.response.data);
+        console.error("Response status:", error.response.status);
+      }
+      
       Swal.fire({
         icon: "error",
         title: "Error",
@@ -575,8 +578,17 @@ const CommentModal = ({ fundId, onClose }) => {
     });
 
     $(document).on("click", ".send-reply", function () {
+      try {
       const commentId = $(this).closest(".comment-item").data("id");
+        if (!commentId) {
+          console.error("Could not find comment ID");
+          return;
+        }
+        console.log("Sending reply to comment ID:", commentId);
       handleReplySubmit(commentId);
+      } catch (err) {
+        console.error("Error in send-reply click handler:", err);
+      }
     });
 
     $(document).on("click", ".cancel-update-reply", function () {
@@ -641,7 +653,7 @@ const CommentModal = ({ fundId, onClose }) => {
       $(document).off("click", ".update-remove-clip");
       $(document).off("click", ".update-reply");
     };
-  }, [editCommentId, replyToCommentId, editReplyId]);
+  }, [editCommentId, replyToCommentId, editReplyId, replyContent, replyAttachment, fundId]);
 
   return (
     <div className="modal-overlay">
@@ -667,144 +679,140 @@ const CommentModal = ({ fundId, onClose }) => {
               comments.map((comment) => (
                 <div 
                   key={comment.cmt_id} 
-                  className={`comment-item card ${editCommentId === comment.cmt_id ? "border-primary shadow-sm" : "border-0 shadow-sm"} mb-4`}
+                  className={`comment-item bg-light rounded p-4 mb-4 ${editCommentId === comment.cmt_id ? "border border-primary" : ""}`}
                   data-id={comment.cmt_id}
                 >
-                  <div className="card-body p-3">
-                    {/* Comment Author Info */}
-                    <div className="d-flex align-items-center mb-3">
-                      <div className="avatar-circle bg-primary text-white d-flex align-items-center justify-content-center me-2">
-                        <span className="fw-bold">BG</span>
+                  {/* Comment Author Info */}
+                  <div className="d-flex align-items-center justify-content-between mb-3">
+                    <div className="d-flex align-items-center">
+                      <div className="bg-primary text-white d-flex align-items-center justify-content-center me-2" style={{ width: "40px", height: "40px", fontSize: "1rem" }}>
+                        <span className="fw-bold">DF</span>
                       </div>
                       <div>
                         <h6 className="mb-0 fw-bold">Donna Fidelino</h6>
-                        <small className="text-muted">Proponent • {new Date(comment.created_at).toLocaleString()}</small>
+                        <small className="text-muted">Proponent</small>
                       </div>
                     </div>
-
-                    {/* Comment Content */}
-                    {editCommentId === comment.cmt_id ? (
-                      <>
-                        <div className="mb-3">
-                          <textarea
-                            className="form-control border-primary"
-                            style={{ resize: "none" }}
-                            value={editedContent}
-                            onChange={(e) => setEditedContent(e.target.value)}
-                            rows="3"
-                          />
-                        </div>
-                        
-                        <div className="d-flex justify-content-between align-items-center">
-                          <div>
-                            {comment.cmt_attachment && !removeAttachment && (
-                              <div className="d-flex align-items-center mb-2">
-                                <i className={`${comment.cmt_attachment.endsWith('.pdf') ? 'fas fa-file-pdf text-danger' : 'far fa-file-image text-primary'} me-2`}></i>
-                                <span className="text-truncate" style={{ maxWidth: "200px" }}>{comment.cmt_attachment}</span>
-                                <button 
-                                  type="button" 
-                                  className="btn btn-sm btn-link text-danger p-0 ms-2 remove-attachment"
-                                  title="Remove attachment"
-                                >
-                                  <i className="fas fa-times"></i>
-                                </button>
-                              </div>
-                            )}
-                            
-                            <input 
-                              type="file" 
-                              className="d-none edit-file-input" 
-                              accept="application/pdf,image/jpeg,image/jpg,image/png" 
-                            />
-                            
-                            <div className={`attachment-preview ${!removeAttachment ? "d-none" : ""}`}>
-                              <p className="mb-0 text-truncate"></p>
-                            </div>
-                          </div>
-                          
-                          <div className="btn-group">
-                            <button className="btn btn-sm btn-outline-primary update-comment-clip" title="Attach file">
-                              <i className="fas fa-paperclip"></i>
-                            </button>
-                            <button className="btn btn-sm btn-outline-secondary cancel-update-comment">Cancel</button>
-                            <button className="btn btn-sm btn-primary update-comment" onClick={() => handleUpdate(comment.cmt_id)}>
-                              <i className="fas fa-check me-1"></i>Update
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <p className="comment-content mb-3">{comment.cmt_content}</p>
-                        
-                        {/* Attachment */}
-                        {comment.cmt_attachment && (
-                          <div className="attachment-card mb-3 p-2 border rounded bg-light">
-                            <a 
-                              className="d-flex align-items-center text-decoration-none"
-                              href={`http://localhost:3001/uploads/${comment.cmt_attachment}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <div className="attachment-icon me-2">
-                                {comment.cmt_attachment.endsWith('.pdf') ? (
-                                  <i className="fas fa-file-pdf text-danger fs-4"></i>
-                                ) : (
-                                  <i className="far fa-file-image text-primary fs-4"></i>
-                                )}
-                              </div>
-                              <div className="attachment-details">
-                                <p className="mb-0 text-truncate" style={{ maxWidth: "200px" }}>{comment.cmt_attachment}</p>
-                                <small className="text-muted">Click to view</small>
-                              </div>
-                            </a>
-                          </div>
-                        )}
-                        
-                        {/* Comment Stats & Actions */}
-                        <div className="d-flex justify-content-between align-items-center">
-                          <div className="d-flex align-items-center">
-                            <span className="badge bg-light text-primary border border-primary me-2">
-                              <i className="fas fa-comment-alt me-1"></i>
-                              <span className="count-replies">{replies[comment.cmt_id]?.length || 0}</span>
-                            </span>
-                            <span className="badge bg-light text-primary border border-primary">
-                              <i className="fas fa-paperclip me-1"></i>
-                              <span className="count-attachments">
-                                {(comment.cmt_attachment ? 1 : 0) + 
-                                 (replies[comment.cmt_id]?.filter(reply => reply.reply_attachment).length || 0)}
-                              </span>
-                            </span>
-                          </div>
-                          
-                          <div className="btn-group">
-                            <button 
-                              className="btn btn-sm btn-outline-primary reply-to-comment"
-                              onClick={() => handleShowReplyForm(comment.cmt_id)}
-                            >
-                              <i className="fas fa-reply me-1"></i>Reply
-                            </button>
-                            <button 
-                              className="btn btn-sm btn-outline-secondary edit-comment" 
-                              onClick={() => handleEdit(comment.cmt_id, comment.cmt_content, comment.cmt_attachment)}
-                            >
-                              <i className="fas fa-pencil-alt me-1"></i>Edit
-                            </button>
-                            <button 
-                              className="btn btn-sm btn-outline-danger delete-comment" 
-                              onClick={() => handleDelete(comment.cmt_id)}
-                            >
-                              <i className="fas fa-trash me-1"></i>Delete
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
+                    <div>
+                      <small className="text-muted">{new Date(comment.created_at).toLocaleString()}</small>
+                    </div>
                   </div>
+
+                  {/* Comment Content */}
+                  {editCommentId === comment.cmt_id ? (
+                    <>
+                      <div className="mb-3">
+                        <textarea
+                          className="form-control border-primary"
+                          style={{ resize: "none" }}
+                          value={editedContent}
+                          onChange={(e) => setEditedContent(e.target.value)}
+                          rows="3"
+                        />
+                      </div>
+                      
+                      <div className="d-flex justify-content-between align-items-center">
+                        <div>
+                          {comment.cmt_attachment && !removeAttachment && (
+                            <div className="d-flex align-items-center mb-2">
+                              <i className={`${comment.cmt_attachment.endsWith('.pdf') ? 'fas fa-file-pdf text-danger' : 'far fa-file-image text-primary'} me-2`}></i>
+                              <span className="text-truncate" style={{ maxWidth: "200px" }}>{comment.cmt_attachment}</span>
+                              <button 
+                                type="button" 
+                                className="btn btn-sm btn-link text-danger p-0 ms-2 remove-attachment"
+                                title="Remove attachment"
+                              >
+                                <i className="fas fa-times"></i>
+                              </button>
+                            </div>
+                          )}
+                          
+                          <input 
+                            type="file" 
+                            className="d-none edit-file-input" 
+                            accept="application/pdf,image/jpeg,image/jpg,image/png" 
+                          />
+                          
+                          <div className={`attachment-preview ${!removeAttachment ? "d-none" : ""}`}>
+                            <p className="mb-0 text-truncate"></p>
+                          </div>
+                        </div>
+                        
+                        <div className="btn-group">
+                          <button className="btn btn-sm btn-outline-primary update-comment-clip" title="Attach file">
+                            <i className="fas fa-paperclip"></i>
+                          </button>
+                          <button className="btn btn-sm btn-outline-secondary cancel-update-comment">Cancel</button>
+                          <button className="btn btn-sm btn-primary update-comment" onClick={() => handleUpdate(comment.cmt_id)}>
+                            <i className="fas fa-check me-1"></i>Update
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="comment-content mb-3">{comment.cmt_content}</p>
+                      
+                      {/* Attachment */}
+                      {comment.cmt_attachment && (
+                        <div className="attachment-card mb-3 p-2 border rounded bg-white">
+                          <a 
+                            className="d-flex align-items-center text-decoration-none"
+                            href={`http://localhost:3001/uploads/${comment.cmt_attachment}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <div className="attachment-icon me-2">
+                              <i className="far fa-file-image text-primary"></i>
+                            </div>
+                            <div className="attachment-details">
+                              <p className="mb-0 text-primary">{comment.cmt_attachment}</p>
+                              <small className="text-muted">Click to view</small>
+                            </div>
+                          </a>
+                        </div>
+                      )}
+                      
+                      {/* Comment Actions */}
+                      <div className="d-flex justify-content-between align-items-center">
+                        <div className="d-flex align-items-center">
+                          <button className="btn btn-sm btn-outline-primary me-2" style={{ pointerEvents: 'none' }}>
+                            <i className="far fa-comment-alt me-1"></i>{replies[comment.cmt_id]?.length || 0}
+                          </button>
+                          <button className="btn btn-sm btn-outline-primary" style={{ pointerEvents: 'none' }}>
+                            <i className="fas fa-paperclip me-1"></i>
+                            {(comment.cmt_attachment ? 1 : 0) + 
+                             (replies[comment.cmt_id]?.filter(reply => reply.reply_attachment).length || 0)}
+                          </button>
+                        </div>
+                        
+                        <div>
+                          <button 
+                            className="btn btn-sm btn-outline-primary me-1 reply-to-comment"
+                            onClick={() => handleShowReplyForm(comment.cmt_id)}
+                          >
+                            <i className="fas fa-reply me-1"></i>Reply
+                          </button>
+                          <button 
+                            className="btn btn-sm btn-outline-secondary me-1 edit-comment"
+                            onClick={() => handleEdit(comment.cmt_id, comment.cmt_content, comment.cmt_attachment)}
+                          >
+                            <i className="fas fa-pencil-alt me-1"></i>Edit
+                          </button>
+                          <button 
+                            className="btn btn-sm btn-outline-danger delete-comment"
+                            onClick={() => handleDelete(comment.cmt_id)}
+                          >
+                            <i className="fas fa-trash me-1"></i>Delete
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                   
                   {/* Reply Form */}
                   {replyToCommentId === comment.cmt_id && (
-                    <div className="reply-form card-footer bg-light p-3">
+                    <div className="reply-form mt-3 p-3 bg-white rounded border">
                       <form className="rounded">
                         <div className="mb-3">
                           <textarea
@@ -827,7 +835,7 @@ const CommentModal = ({ fundId, onClose }) => {
                             />
                             
                             {replyAttachment && (
-                              <div className="d-flex align-items-center mb-2 p-2 bg-white rounded border">
+                              <div className="d-flex align-items-center mb-2 p-2 bg-light rounded border">
                                 <i className={`${replyAttachment.type.includes('pdf') ? 'fas fa-file-pdf text-danger' : 'far fa-file-image text-primary'} me-2`}></i>
                                 <span className="text-truncate" style={{ maxWidth: "200px" }}>{replyAttachment.name}</span>
                                 <button 
@@ -867,126 +875,122 @@ const CommentModal = ({ fundId, onClose }) => {
                   
                   {/* Replies List */}
                   {replies[comment.cmt_id] && replies[comment.cmt_id].length > 0 && (
-                    <div className="reply-list card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
-                      <div className="ms-4 ps-2 border-start">
-                        {replies[comment.cmt_id].map(reply => (
-                          <div 
-                            key={reply.reply_id} 
-                            className={`reply-item card ${editReplyId === reply.reply_id ? "border-primary shadow-sm" : "border-0"} mb-2 mt-3`}
-                            data-id={reply.reply_id}
-                          >
-                            <div className="card-body p-3">
-                              {/* Reply Author Info */}
-                              <div className="d-flex align-items-center mb-2">
-                                <div className="avatar-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style={{ width: "30px", height: "30px", fontSize: "0.8rem" }}>
-                                  <span className="fw-bold">BG</span>
-                                </div>
-                                <div>
-                                  <h6 className="mb-0 fw-bold fs-6">Donna Fidelino</h6>
-                                  <small className="text-muted">Proponent • {new Date(reply.reply_created_at).toLocaleString()}</small>
-                                </div>
+                    <div className="reply-list mt-3 ms-4 ps-2 border-start">
+                      {replies[comment.cmt_id].map(reply => (
+                        <div 
+                          key={reply.reply_id} 
+                          className={`reply-item bg-white rounded p-3 mb-2 ${editReplyId === reply.reply_id ? "border border-primary" : "border"}`}
+                          data-id={reply.reply_id}
+                        >
+                          {/* Reply Author Info */}
+                          <div className="d-flex align-items-center mb-2">
+                            <div className="bg-primary text-white d-flex align-items-center justify-content-center me-2" style={{ width: "30px", height: "30px", fontSize: "0.8rem" }}>
+                              <span className="fw-bold">DF</span>
+                            </div>
+                            <div>
+                              <h6 className="mb-0 fw-bold fs-6">Donna Fidelino</h6>
+                              <small className="text-muted">Proponent • {new Date(reply.reply_created_at).toLocaleString()}</small>
+                            </div>
+                          </div>
+                          
+                          {/* Reply Content */}
+                          {editReplyId === reply.reply_id ? (
+                            <>
+                              <div className="mb-3">
+                                <textarea
+                                  className="form-control border-primary"
+                                  style={{ resize: "none" }}
+                                  value={editedReplyContent}
+                                  onChange={(e) => setEditedReplyContent(e.target.value)}
+                                  rows="2"
+                                />
                               </div>
                               
-                              {/* Reply Content */}
-                              {editReplyId === reply.reply_id ? (
-                                <>
-                                  <div className="mb-3">
-                                    <textarea
-                                      className="form-control border-primary"
-                                      style={{ resize: "none" }}
-                                      value={editedReplyContent}
-                                      onChange={(e) => setEditedReplyContent(e.target.value)}
-                                      rows="2"
-                                    />
-                                  </div>
-                                  
-                                  <div className="d-flex justify-content-between align-items-center">
-                                    <div>
-                                      {reply.reply_attachment && !removeReplyAttachment && (
-                                        <div className="d-flex align-items-center mb-2">
-                                          <i className={`${reply.reply_attachment.endsWith('.pdf') ? 'fas fa-file-pdf text-danger' : 'far fa-file-image text-primary'} me-2`}></i>
-                                          <span className="text-truncate" style={{ maxWidth: "200px" }}>{reply.reply_attachment}</span>
-                                          <button 
-                                            type="button" 
-                                            className="btn btn-sm btn-link text-danger p-0 ms-2 update-remove-clip"
-                                            title="Remove attachment"
-                                          >
-                                            <i className="fas fa-times"></i>
-                                          </button>
-                                        </div>
-                                      )}
-                                      
-                                      <input 
-                                        type="file" 
-                                        className="d-none update-upload-clip" 
-                                        accept="application/pdf,image/jpeg,image/jpg,image/png" 
-                                      />
-                                    </div>
-                                    
-                                    <div className="btn-group">
-                                      <button className="btn btn-sm btn-outline-primary update-reply-clip" title="Attach file">
-                                        <i className="fas fa-paperclip"></i>
-                                      </button>
-                                      <button className="btn btn-sm btn-outline-secondary cancel-update-reply">Cancel</button>
-                                      <button className="btn btn-sm btn-primary update-reply">
-                                        <i className="fas fa-check me-1"></i>Update
-                                      </button>
-                                    </div>
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <p className="card-text reply-content mb-2">{reply.reply_content}</p>
-                                  
-                                  {/* Reply Attachment */}
-                                  {reply.reply_attachment && (
-                                    <div className="attachment-card mb-3 p-2 border rounded bg-light">
-                                      <a 
-                                        className="d-flex align-items-center text-decoration-none"
-                                        href={`http://localhost:3001/uploads/${reply.reply_attachment}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                              <div className="d-flex justify-content-between align-items-center">
+                                <div>
+                                  {reply.reply_attachment && !removeReplyAttachment && (
+                                    <div className="d-flex align-items-center mb-2">
+                                      <i className={`${reply.reply_attachment.endsWith('.pdf') ? 'fas fa-file-pdf text-danger' : 'far fa-file-image text-primary'} me-2`}></i>
+                                      <span className="text-truncate" style={{ maxWidth: "200px" }}>{reply.reply_attachment}</span>
+                                      <button 
+                                        type="button" 
+                                        className="btn btn-sm btn-link text-danger p-0 ms-2 update-remove-clip"
+                                        title="Remove attachment"
                                       >
-                                        <div className="attachment-icon me-2">
-                                          {reply.reply_attachment.endsWith('.pdf') ? (
-                                            <i className="fas fa-file-pdf text-danger"></i>
-                                          ) : (
-                                            <i className="far fa-file-image text-primary"></i>
-                                          )}
-                                        </div>
-                                        <div className="attachment-details">
-                                          <p className="mb-0 text-truncate" style={{ maxWidth: "180px" }}>
-                                            <span className="reply-attachment">{reply.reply_attachment}</span>
-                                          </p>
-                                          <small className="text-muted">Click to view</small>
-                                        </div>
-                                      </a>
+                                        <i className="fas fa-times"></i>
+                                      </button>
                                     </div>
                                   )}
                                   
-                                  {/* Reply Actions */}
-                                  <div className="d-flex justify-content-end">
-                                    <div className="btn-group">
-                                      <button 
-                                        className="btn btn-sm btn-outline-secondary edit-reply default-actions" 
-                                        onClick={() => handleEditReply(reply.reply_id, reply.reply_content, reply.reply_attachment, comment.cmt_id)}
-                                      >
-                                        <i className="fas fa-pencil-alt"></i>
-                                      </button>
-                                      <button 
-                                        className="btn btn-sm btn-outline-danger delete-reply default-actions" 
-                                        onClick={() => handleDeleteReply(reply.reply_id, comment.cmt_id)}
-                                      >
-                                        <i className="fas fa-trash"></i>
-                                      </button>
+                                  <input 
+                                    type="file" 
+                                    className="d-none update-upload-clip" 
+                                    accept="application/pdf,image/jpeg,image/jpg,image/png" 
+                                  />
+                                </div>
+                                
+                                <div className="btn-group">
+                                  <button className="btn btn-sm btn-outline-primary update-reply-clip" title="Attach file">
+                                    <i className="fas fa-paperclip"></i>
+                                  </button>
+                                  <button className="btn btn-sm btn-outline-secondary cancel-update-reply">Cancel</button>
+                                  <button className="btn btn-sm btn-primary update-reply">
+                                    <i className="fas fa-check me-1"></i>Update
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <p className="card-text reply-content mb-2">{reply.reply_content}</p>
+                              
+                              {/* Reply Attachment */}
+                              {reply.reply_attachment && (
+                                <div className="attachment-card mb-3 p-2 border rounded bg-light">
+                                  <a 
+                                    className="d-flex align-items-center text-decoration-none"
+                                    href={`http://localhost:3001/uploads/${reply.reply_attachment}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <div className="attachment-icon me-2">
+                                      {reply.reply_attachment.endsWith('.pdf') ? (
+                                        <i className="fas fa-file-pdf text-danger"></i>
+                                      ) : (
+                                        <i className="far fa-file-image text-primary"></i>
+                                      )}
                                     </div>
-                                  </div>
-                                </>
+                                    <div className="attachment-details">
+                                      <p className="mb-0 text-truncate" style={{ maxWidth: "180px" }}>
+                                        <span className="reply-attachment">{reply.reply_attachment}</span>
+                                      </p>
+                                      <small className="text-muted">Click to view</small>
+                                    </div>
+                                  </a>
+                                </div>
                               )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                              
+                              {/* Reply Actions */}
+                              <div className="d-flex justify-content-end">
+                                <div className="btn-group">
+                                  <button 
+                                    className="btn btn-sm btn-outline-secondary edit-reply default-actions" 
+                                    onClick={() => handleEditReply(reply.reply_id, reply.reply_content, reply.reply_attachment, comment.cmt_id)}
+                                  >
+                                    <i className="fas fa-pencil-alt"></i>
+                                  </button>
+                                  <button 
+                                    className="btn btn-sm btn-outline-danger delete-reply default-actions" 
+                                    onClick={() => handleDeleteReply(reply.reply_id, comment.cmt_id)}
+                                  >
+                                    <i className="fas fa-trash"></i>
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1011,7 +1015,7 @@ const CommentModal = ({ fundId, onClose }) => {
                 
                 <div className="d-flex justify-content-between align-items-center">
                   <div>
-                    <button type="button" className="btn btn-outline-primary position-relative" onClick={() => fileInputRef.current.click()}>
+                    <button type="button" className="btn btn-outline-primary" onClick={() => fileInputRef.current.click()}>
                       <i className="fas fa-paperclip me-1"></i>Attach File
                       <input 
                         type="file" 
