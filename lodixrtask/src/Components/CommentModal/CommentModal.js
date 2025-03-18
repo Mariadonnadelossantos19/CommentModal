@@ -25,6 +25,12 @@ const CommentModal = ({ fundId, onClose }) => {
   const [removeReplyAttachment, setRemoveReplyAttachment] = useState(false);
   const [replyDownloadLinkHtml, setReplyDownloadLinkHtml] = useState("");
 
+  // Function to auto-resize the textarea
+  const autoResize = (textarea) => {
+    textarea.style.height = "auto"; // Reset textarea height
+    textarea.style.height = textarea.scrollHeight + "px"; // Set new height
+  };
+
   useEffect(() => {
     fetchComments();
   }, []);
@@ -707,6 +713,7 @@ const CommentModal = ({ fundId, onClose }) => {
                           style={{ resize: "none" }}
                           value={editedContent}
                           onChange={(e) => setEditedContent(e.target.value)}
+                          onInput={(e) => autoResize(e.target)}
                           rows="3"
                         />
                       </div>
@@ -819,6 +826,7 @@ const CommentModal = ({ fundId, onClose }) => {
                             className="form-control reply-textarea"
                             value={replyContent}
                             onChange={(e) => setReplyContent(e.target.value)}
+                            onInput={(e) => autoResize(e.target)}
                             placeholder="Write a reply..."
                             rows="2"
                             required
@@ -902,6 +910,7 @@ const CommentModal = ({ fundId, onClose }) => {
                                   style={{ resize: "none" }}
                                   value={editedReplyContent}
                                   onChange={(e) => setEditedReplyContent(e.target.value)}
+                                  onInput={(e) => autoResize(e.target)}
                                   rows="2"
                                 />
                               </div>
@@ -1007,6 +1016,7 @@ const CommentModal = ({ fundId, onClose }) => {
                     className="form-control"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
+                    onInput={(e) => autoResize(e.target)}
                     placeholder="Write a comment..."
                     rows="3"
                     required

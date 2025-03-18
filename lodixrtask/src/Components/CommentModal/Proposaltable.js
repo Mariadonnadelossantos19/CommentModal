@@ -5,6 +5,7 @@ import CommentModal from "./CommentModal"; // Ensure this import is correct
 const ProposalTable = () => {
   const [isModalOpen, setModalOpen] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState(null); // Store selected proposal
+  const [comments, setComments] = useState([]); // Store comments
 
   const proposals = [
     {
@@ -20,9 +21,20 @@ const ProposalTable = () => {
     },
   ];
 
+  // Dummy users for testing
+  const users = [
+    { id: 1, name: "User One" },
+    { id: 2, name: "User Two" },
+  ];
+
   const handleAddCommentClick = (proposal) => {
     setSelectedProposal(proposal);
     setModalOpen(true);
+  };
+
+  const handleCommentSubmit = (comment) => {
+    setComments((prevComments) => [...prevComments, comment]);
+    setModalOpen(false);
   };
 
   return (
@@ -146,6 +158,8 @@ const ProposalTable = () => {
           isOpen={isModalOpen}
           onClose={() => setModalOpen(false)}
           proposal={selectedProposal} // Pass proposal data to modal
+          users={users} // Pass users to modal
+          onCommentSubmit={handleCommentSubmit} // Pass comment submit handler
         />
       )}
     </div>
